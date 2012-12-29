@@ -1,0 +1,169 @@
+from operator import itemgetter
+from Tree import *
+import math
+
+class TREEAL(DistProcess):
+     
+   def setup(ps, R, quota):
+        #print(R)
+        ts= None
+        ReplyQue = []
+        RequestQue = []
+        temp_request =None
+        in_cs= False
+        req_quota = quota
+        s=ps
+        item = None
+        replied= False
+
+   def cs(task):
+       # to enter cs, enque and send request to all, then await replies from all
+         --start
+         #output("Is requesting.") 
+         ts= logical_clock()
+         for pss in R:
+              send(Request(ts, self), pss)
+         
+         --wait
+         await(len(ReplyQue)>=len(R))
+         in_cs= True
+         #replied= True
+
+       # critical section
+         --cs     
+          
+         task()
+         work() 
+          
+       # to exit cs
+         --release    
+         output("Is releasing.") 
+         in_cs= False
+         for pss in R:
+           send(Relinquish(self), pss)
+         ReplyQue =[]
+         --end
+         
+
+   def main():
+          def anounce():
+               output("In cs!")
+          
+          i=0      
+          while i< req_quota:
+               cs(anounce)
+               i+=1
+          print(i)
+          await(False)  
+
+          
+   def OnRequest(ts_j, pj):
+    if(len(RequestQue)==0 or (len(RequestQue)>0 and ts_j >= RequestQue[0][1])):
+      RequestQue.append((pj, ts_j))
+      sorted(RequestQue, key=itemgetter(1)) 
+      if(replied== False):
+           send(Reply(self), RequestQue[0][0])
+           replied= True
+    else:
+             #print(ts_j, " ", RequestQue[0][1])
+      #if(ts_j < RequestQue[0][1]):  
+             temp_request= (pj, ts_j)
+             send(Inquire(self), RequestQue[0][0])
+      
+
+             
+   def OnInquire(pj):
+        if(len(ReplyQue)< len(R)):
+           send(Yield(self), pj)
+        else:
+          if(in_cs == False):
+             for pss in R:
+               send(Relinquish(self), pss)
+           
+
+   def OnYield(pj):
+          if(temp_request!=None):
+             RequestQue.append(temp_request)
+             sorted(RequestQue, key=itemgetter(1))
+             if(replied== False):
+                send(Reply(self), RequestQue[0][0])
+                replied== True
+             temp_request= None
+
+
+   def OnReply(pj):
+         ReplyQue.append(pj)
+
+   def OnRelinquish(pj):
+         replied =False
+         for item in RequestQue: 
+             if(pj==item[0]):
+                  RequestQue.remove(item)
+         if(len(RequestQue)>0):
+           send(Reply(self), RequestQue[0][0])
+           replied= True
+         
+         
+          
+import random
+
+def random_samples(n,total):
+
+        dividers = sorted(random.sample(range(1,total),n-1))
+        return [a - b for a, b in zip(dividers + [total], [0] + dividers)]
+ 
+
+def main():
+     # configuration: number of processes
+     # create n process
+     BTree = CBOrdTree()
+     #n = int(sys.argv[1]) if len(sys.argv) > 1 else 7
+     #request_total = int(sys.argv[2]) if len(sys.argv) >2 else 14
+
+     n= int(input("number of sites: "))
+     #n = int(sys.argv[1]) if len(sys.argv) > 1 else 7
+     request_total = int(input("total number of requests for all sites: "))
+     
+
+     lists= []
+     res= []
+     cur_ptr=0
+     ps = createprocs(TREEAL, n)
+
+     for pss in ps:
+       lists.append((pss))
+    
+     lists.sort()
+     print(lists)
+    
+     length=len(lists)+1
+     print(length)
+     
+     mid= int(length / 2)  #8
+     root = BTree.addNode(lists[mid-1])
+     
+     half= int(mid/2)    #4
+     count= length/mid   #2
+     while(count<length):
+         j=0
+         ran=length/count
+         while(j<count):
+            ind= half+ran*j-1
+            BTree.insert(root, lists[int(ind)])  
+            j=j+1
+         count=count*2
+         half= half/2
+
+     #request number for each process
+     request_quota = random_samples(n,request_total)
+      
+     for p,quota in zip(ps,request_quota):
+         res= []
+         BTree.printpathtoroot(root, p, res)
+         if p in res:
+            res.remove(p)
+         #print("site:",p, "-quorum:", res)
+         setupprocs([p], [ps-{p},res,quota])
+        
+     startprocs(ps)
+     for p in ps: p.join()
