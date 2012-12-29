@@ -1,3 +1,8 @@
+
+This algorithm is simulated by Disalgo which is based on python, and through defining a series of functions for sending 
+and receiving message from one site to another.It takes N processes and R requests for each processes, and mutual 
+exclusion is guaranteed while accessing the CS.
+
 Before implementing this algorithm, defined a Binary Tree class to organize all sites into a complete binary Tree.
 Then to implement this algorithm, defined two queues and a variable called “pending_request”. One is waiting queue 
 which collects the requests from other site. The second is replying queue which collects the replies send from other 
